@@ -1,0 +1,28 @@
+{
+  "name": "@hickorytechnology/fluent-emojis",
+  "version": "0.0.1",
+  "exports": "./main.ts",
+  "tasks": {
+    "build": "deno run --allow-read --allow-write build.ts",
+    "check:types": "deno check **/*.ts",
+    "dev": "deno deno run --watch --allow-read --allow-write main.ts",
+    "ok": "deno fmt --check && deno lint && deno task check:types && deno task test",
+    "server": "deno run -A --watch=test/,main.ts ./test/runTestServer.ts",
+    "test": "deno test --allow-read --allow-env --allow-write --allow-run --allow-net"
+  },
+  "imports": {
+    "preact": "npm:preact@^10.21.0",
+    "preact/": "npm:/preact@^10.21.0/",
+    "@std/assert": "jsr:@std/assert@1"
+  },
+  "compilerOptions": {
+    "strict": true,
+    "allowJs": true,
+    "lib": [
+      "deno.window",
+      "dom"
+    ],
+    "jsx": "react-jsx",
+    "jsxImportSource": "preact"
+  }
+}
