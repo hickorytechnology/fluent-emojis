@@ -1,7 +1,7 @@
 // fluentEmoji.ts
 
-import { ensureDir } from "https://deno.land/std/fs/mod.ts";
-import { join } from "https://deno.land/std/path/mod.ts";
+import { ensureDir, walk } from "https://deno.land/std/fs/mod.ts";
+import { basename, join } from "https://deno.land/std/path/mod.ts";
 
 export interface IconProps {
   style?: "Color" | "Flat" | "High Contrast" | "3D";
@@ -49,7 +49,81 @@ export class FluentEmoji {
   }
 
   private async loadMetadataAndVariations(): Promise<void> {
-    // ... (previous implementation remains the same)
+    for await (const entry of walk(this.baseDir, { maxDepth: 1 })) {
+      if (entry.isDirectory) {
+        const iconName = basename(entry.path);
+        const metadataPath = join(entry.path, "metadata.json");
+
+        try {
+          const metadataContent = await Deno.readTextFile(metadataPath);
+          const metadata: IconMetadata = JSON.parse(metadataContent);
+          this.metadata.set(iconName, metadata);
+
+          const variations: IconVariations = { skinTones: [], styles: {} };
+          let hasSkinTones = false;
+
+          // Check for skin tone directories
+          for await (const subEntry of walk(entry.path, { maxDepth: 1 })) {
+            if (
+              subEntry.isDirectory &&
+              [
+                "Light",
+                "Medium-Light",
+                "Medium",
+                "Medium-Dark",
+                "Dark",
+              ].includes(basename(subEntry.path))
+            ) {
+              hasSkinTones = true;
+              break;
+            }
+          }
+
+          if (hasSkinTones) {
+            // Process directories with skin tones
+            for await (const subEntry of walk(entry.path, { maxDepth: 1 })) {
+              if (
+                subEntry.isDirectory &&
+                basename(subEntry.path) !== iconName
+              ) {
+                const skinTone = basename(subEntry.path);
+                variations.skinTones.push(skinTone);
+                variations.styles[skinTone] = [];
+
+                for await (const styleEntry of walk(subEntry.path, {
+                  maxDepth: 1,
+                })) {
+                  if (styleEntry.isDirectory) {
+                    const style = basename(styleEntry.path);
+                    variations.styles[skinTone].push(style);
+                  }
+                }
+              }
+            }
+          } else {
+            // Process directories without skin tones (standard structure)
+            variations.skinTones = ["Default"];
+            variations.styles["Default"] = [];
+            for await (const styleEntry of walk(entry.path, { maxDepth: 1 })) {
+              if (
+                styleEntry.isDirectory &&
+                ["3D", "Color", "Flat", "High Contrast"].includes(
+                  basename(styleEntry.path)
+                )
+              ) {
+                variations.styles["Default"].push(basename(styleEntry.path));
+              }
+            }
+          }
+
+          this.variations.set(iconName, variations);
+        } catch (error) {
+          console.warn(
+            `Failed to load metadata or variations for ${entry.path}: ${error}`
+          );
+        }
+      }
+    }
   }
 
   async getIconSvg(
@@ -77,12 +151,18 @@ export class FluentEmoji {
     }
 
     const underscoredName = name.toLowerCase().replace(/ /g, "_");
-    const fileName =
-      variations.skinTones.length > 1
-        ? `${underscoredName}_${style.toLowerCase()}_${skinTone.toLowerCase()}.svg`
-        : `${underscoredName}_${style.toLowerCase()}.svg`;
+    let fileName: string;
+    let iconPath: string;
 
-    const iconPath = join(this.baseDir, name, skinTone, style, fileName);
+    if (variations.skinTones.length > 1) {
+      // Icon has skin tone variations
+      fileName = `${underscoredName}_${style.toLowerCase()}_${skinTone.toLowerCase()}.svg`;
+      iconPath = join(this.baseDir, name, skinTone, style, fileName);
+    } else {
+      // Standard icon structure
+      fileName = `${underscoredName}_${style.toLowerCase()}.svg`;
+      iconPath = join(this.baseDir, name, style, fileName);
+    }
 
     try {
       return await Deno.readTextFile(iconPath);
