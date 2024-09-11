@@ -1,6 +1,6 @@
-import { ensureDir } from "https://deno.land/std@0.224.0/fs/mod.ts";
-import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
-import { FluentEmoji } from "./fluentEmoji.ts";
+import { ensureDir } from "https://deno.land/std/fs/mod.ts";
+import { join } from "https://deno.land/std/path/mod.ts";
+import { FluentEmoji, type IconProps } from "./fluentEmoji.ts";
 
 const outputDir = "./src/components";
 const indexFile = join(outputDir, "index.ts");
@@ -10,31 +10,75 @@ async function generateIconComponent(
   name: string
 ): Promise<string> {
   const componentName = fluentEmoji.toComponentName(name);
-  const svgContent = await fluentEmoji.getIconSvg(name);
+  const variations = fluentEmoji.getAvailableVariations(name);
+
+  if (!variations) {
+    throw new Error(`No variations found for icon '${name}'`);
+  }
+
+  const defaultSkinTone = variations.skinTones[0] as
+    | "Default"
+    | "Light"
+    | "Medium-Light"
+    | "Medium"
+    | "Medium-Dark"
+    | "Dark";
+  const styles = variations.styles[defaultSkinTone]; // <-- suspect
+
+  const styleContentPromises = styles.map(async (style) => {
+    const { content, isImage } = await fluentEmoji.getIconContent(name, {
+      skinTone: defaultSkinTone,
+      style: style as IconProps["style"],
+    });
+    return `'${style}': { content: \`${content}\`, isImage: ${isImage} }`;
+  });
+
+  const styleContents = await Promise.all(styleContentPromises);
 
   return `
 import { h } from 'preact';
 import type { FunctionComponent } from 'preact';
 import { IconProps } from '../types';
 
-const ${componentName}: FunctionComponent<IconProps> = ({ style = 'Color', size, color, className }) => {
-  let svg = \`${svgContent}\`;
+const ${componentName}: FunctionComponent<IconProps> = ({ 
+  style = 'Color', 
+  skinTone = '${defaultSkinTone}', 
+  size, 
+  color, 
+  className 
+}) => {
+  const iconContent = {
+    ${styleContents.join(",\n    ")}
+  };
 
-  if (size) {
-    svg = svg.replace(/<svg([^>]*)>/, (match, attrs) => {
-      return \`<svg\${attrs} width="\${size}" height="\${size}">\`;
-    });
+  const { content, isImage } = iconContent[style] || iconContent['Color'];
+
+  let finalContent = content;
+
+  if (!isImage) {
+    if (size) {
+      finalContent = finalContent.replace(/<svg([^>]*)>/, (match, attrs) => {
+        return \`<svg\${attrs} width="\${size}" height="\${size}">\`;
+      });
+    }
+
+    if (color) {
+      finalContent = finalContent.replace(/fill="[^"]*"/g, \`fill="\${color}"\`);
+    }
   }
 
-  if (color) {
-    svg = svg.replace(/fill="[^"]*"/g, \`fill="\${color}"\`);
+  const props: any = { className };
+  if (isImage) {
+    props.src = \`data:image/png;base64,\${content}\`;
+    if (size) {
+      props.width = size;
+      props.height = size;
+    }
+    return h('img', props);
+  } else {
+    props.dangerouslySetInnerHTML = { __html: finalContent };
+    return h('div', props);
   }
-
-  if (className) {
-    svg = svg.replace(/<svg/, \`<svg class="\${className}"\`);
-  }
-
-  return h('div', { dangerouslySetInnerHTML: { __html: svg } });
 };
 
 export default ${componentName};

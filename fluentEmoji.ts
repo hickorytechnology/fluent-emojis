@@ -1,7 +1,7 @@
 // fluentEmoji.ts
 
 import { ensureDir, walk } from "https://deno.land/std/fs/mod.ts";
-import { basename, join } from "https://deno.land/std/path/mod.ts";
+import { basename, extname, join } from "https://deno.land/std/path/mod.ts";
 
 export interface IconProps {
   style?: "Color" | "Flat" | "High Contrast" | "3D";
@@ -151,16 +151,17 @@ export class FluentEmoji {
     }
 
     const underscoredName = name.toLowerCase().replace(/ /g, "_");
+    const underscoredStyle = style.toLowerCase().replace(/ /g, "_");
     let fileName: string;
     let iconPath: string;
 
     if (variations.skinTones.length > 1) {
       // Icon has skin tone variations
-      fileName = `${underscoredName}_${style.toLowerCase()}_${skinTone.toLowerCase()}.svg`;
+      fileName = `${underscoredName}_${underscoredStyle.toLowerCase()}_${skinTone.toLowerCase()}.svg`;
       iconPath = join(this.baseDir, name, skinTone, style, fileName);
     } else {
       // Standard icon structure
-      fileName = `${underscoredName}_${style.toLowerCase()}.svg`;
+      fileName = `${underscoredName}_${underscoredStyle.toLowerCase()}.svg`;
       iconPath = join(this.baseDir, name, style, fileName);
     }
 
@@ -168,6 +169,69 @@ export class FluentEmoji {
       return await Deno.readTextFile(iconPath);
     } catch (error) {
       throw new Error(`Failed to read icon file: ${error}`);
+    }
+  }
+
+  async getIconContent(
+    name: string,
+    options: Partial<IconProps> = {}
+  ): Promise<{ content: string; isImage: boolean }> {
+    const variations = this.variations.get(name);
+    if (!variations) {
+      throw new Error(`Icon '${name}' not found`);
+    }
+
+    const skinTone = options.skinTone || "Default";
+    const style = options.style || "Color";
+
+    if (!variations.skinTones.includes(skinTone)) {
+      throw new Error(
+        `Skin tone '${skinTone}' not available for icon '${name}'`
+      );
+    }
+
+    if (!variations.styles[skinTone].includes(style)) {
+      throw new Error(
+        `Style '${style}' not available for icon '${name}' with skin tone '${skinTone}'`
+      );
+    }
+
+    const underscoredName = name.toLowerCase().replace(/ /g, "_");
+    const underscoredStyle = style.toLowerCase().replace(/ /g, "_");
+    let fileName: string;
+    let iconPath: string;
+
+    if (variations.skinTones.length > 1 && skinTone !== "Default") {
+      // Icon has skin tone variations
+      fileName =
+        style === "3D"
+          ? `${underscoredName}_3d_${skinTone.toLowerCase()}.png`
+          : `${underscoredName}_${underscoredStyle}_${skinTone.toLowerCase()}.svg`;
+      iconPath = join(this.baseDir, name, skinTone, style, fileName);
+      console.log(
+        `'${this.baseDir}', '${name}', '${skinTone}', '${style}', '${fileName}'`
+      );
+    } else {
+      // Standard icon structure or Default skin tone
+      fileName =
+        style === "3D"
+          ? `${underscoredName}_3d.png`
+          : `${underscoredName}_${underscoredStyle}.svg`;
+      iconPath = join(this.baseDir, name, style, fileName);
+    }
+
+    try {
+      const content = await Deno.readFile(iconPath);
+      const isImage = extname(fileName).toLowerCase() === ".png";
+      return {
+        content: isImage
+          ? btoa(String.fromCharCode(...new Uint8Array(content)))
+          : new TextDecoder().decode(content),
+        isImage,
+      };
+    } catch (error) {
+      console.error(`Error reading file: ${iconPath}`);
+      throw new Error(`Failed to read icon file: ${error}, Path: ${iconPath}`);
     }
   }
 
