@@ -6,13 +6,13 @@
   "configurations": [
     {
       "request": "launch",
-      "name": "Deno dev",
+      "name": "Launch Program",
       "type": "node",
       "program": "${workspaceFolder}/main.ts",
       "cwd": "${workspaceFolder}",
       "env": {},
       "runtimeExecutable": "/Users/josh/.deno/bin/deno",
-      "runtimeArgs": ["run", "--unstable", "--inspect-wait", "--allow-all", "build"],
+      "runtimeArgs": ["run", "--unstable", "--inspect-wait", "--allow-all"],
       "attachSimplePort": 9229
     }
   ]

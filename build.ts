@@ -38,7 +38,7 @@ async function generateIconComponent(
   return `
 import { h } from 'preact';
 import type { FunctionComponent } from 'preact';
-import { IconProps } from '../types';
+import type { IconProps } from '../types.ts';
 
 const ${componentName}: FunctionComponent<IconProps> = ({ 
   style = 'Color', 
