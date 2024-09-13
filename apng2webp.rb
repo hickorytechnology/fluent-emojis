@@ -24,6 +24,10 @@ OptionParser.new do |opts|
     options[:size] = v
   end
 
+  opts.on("-l", "--loop COUNT", Integer, "Number of times to loop the animation, default is 0 (infinite)") do |v|
+    options[:loop] = v
+  end
+
   opts.on("-h", "--help", "Displays Help") do
     puts opts
     exit
@@ -37,6 +41,7 @@ if options[:input].nil? || options[:output].nil?
 end
 
 quality = options[:quality] || 75
+loop_count = options[:loop] || 0  # Default loop value is 0 (infinite)
 
 # Compute the absolute paths of the input and output files
 input_path = File.expand_path(options[:input])
@@ -68,14 +73,14 @@ end
 input_fps = fps_numerator / fps_denominator
 puts "Source FPS: #{input_fps}"
 
-# Use ffmpeg with the libwebp codec to convert the APNG directly to animated WebP
+# Use ffmpeg with the libwebp_anim codec to convert the APNG directly to animated WebP
 ffmpeg_cmd = [
   "ffmpeg", "-f", "apng", "-i", input_path,
   "-vf", "#{resize_filter},format=yuva420p", # Resize and convert to YUVA format for transparency and lossless encoding
   "-c:v", "libwebp_anim", 
   "-q:v", quality.to_s, 
   "-r", input_fps.to_s,   # Set the frame rate
-  "-loop", "0",           # Infinite loop for the animation
+  "-loop", loop_count.to_s, # Set loop count (default 0 for infinite loop)
   output_path
 ]
 
